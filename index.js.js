@@ -10,7 +10,7 @@ const genAI = new GoogleGenerativeAI('YOUR_GEMINI_API_KEY');
 // دالة لسحب البيانات من Google Sheets
 async function getSheetData() {
     // حط لينك الشيت هنا (لازم يكون Published as CSV)
-    const sheetUrl = 'YOUR_GOOGLE_SHEET_CSV_LINK';
+    const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS6zcrERoQIWZ_TMN6ppVRcPwCo6mfvJUtUscvCQhJJVTxFHwrQ7YZz98I3Im6MQeIfaagyGfkqvAd7/pub?output=csv';
     try {
         const res = await axios.get(sheetUrl);
         return res.data;
