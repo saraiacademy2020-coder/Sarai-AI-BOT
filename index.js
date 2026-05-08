@@ -1,19 +1,35 @@
 const http = require('http');
 const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
-const qrcode = require('qrcode-terminal');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const axios = require('axios');
 
-console.log("=== 1. بدء تشغيل الكود ===");
+let currentQR = ""; 
+let isConnected = false;
 
+// السيرفر هيعرض صفحة ويب فيها صورة الـ QR بدل الـ Logs
 const server = http.createServer((req, res) => {
-    res.writeHead(200, {'Content-Type': 'text/plain'});
-    res.end('Sarai Bot is running!');
+    res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});
+    if (isConnected) {
+        res.end('<h1 style="text-align:center; margin-top:50px; color:green;">البوت متصل وشغال تمام! 🎉</h1>');
+    } else if (currentQR) {
+        // بنحول كود الـ QR لصورة واضحة عن طريق API خارجي
+        const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(currentQR)}`;
+        res.end(`
+            <div style="text-align: center; margin-top: 50px; font-family: sans-serif;">
+                <h2>اعمل Scan للكود ده من موبايلك</h2>
+                <img src="${qrImageUrl}" alt="QR Code" style="border: 2px solid #ccc; padding: 10px; border-radius: 10px;" />
+                <p style="color: gray;">(لو الكود ملقطش، اعمل ريفرش للصفحة عشان تاخد الكود الجديد)</p>
+            </div>
+        `);
+    } else {
+        res.end('<h1 style="text-align:center; margin-top:50px;">جاري تجهيز الكود... اعمل ريفرش كمان ثواني</h1>');
+    }
 });
+
 const port = process.env.PORT || 3000;
 server.listen(port, () => {
-    console.log(`=== 2. السيرفر الوهمي اشتغل على بورت ${port} ===`);
+    console.log(`السيرفر شغال على بورت ${port}`);
 });
 
 const genAI = new GoogleGenerativeAI('AIzaSyBLdovLAtqNRZgnWyioe_y3F5S7_vPWzZk');
@@ -29,17 +45,14 @@ async function getSheetData() {
 }
 
 async function connectToWhatsApp() {
-    console.log("=== 3. جاري تجهيز ملفات الواتساب... ===");
     try {
         const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
-        // سحب أحدث إصدار لواتساب ويب لمنع الرفض
         const { version } = await fetchLatestBaileysVersion();
-        console.log(`=== 4. تم التجهيز. جاري الاتصال بإصدار ${version.join('.')} ===`);
 
         const sock = makeWASocket({
             version,
             auth: state,
-            printQRInTerminal: false,
+            printQRInTerminal: false, // قفلنا الـ QR بتاع الـ Logs
             logger: pino({ level: 'silent' }),
             browser: ['Ubuntu', 'Chrome', '20.0.04']
         });
@@ -48,14 +61,16 @@ async function connectToWhatsApp() {
             const { connection, lastDisconnect, qr } = update;
             
             if (qr) {
-                console.log('=== 5. الكود وصل! اعمل Scan للـ QR ده فوراً ===');
-                qrcode.generate(qr, { small: true });
+                currentQR = qr; // حفظنا الكود عشان يظهر في الموقع
+                console.log('=== افتح لينك Render دلوقتي عشان تعمل Scan ===');
             }
             
             if (connection === 'close') {
-                console.log("=== الاتصال قفل، جاري إعادة المحاولة... ===");
+                isConnected = false;
                 setTimeout(connectToWhatsApp, 3000); 
             } else if (connection === 'open') {
+                isConnected = true;
+                currentQR = "";
                 console.log('=== البوت متصل وجاهز للرد باسم Sarai! ===');
             }
         });
@@ -70,16 +85,13 @@ async function connectToWhatsApp() {
             const sender = m.key.remoteJid;
 
             if (text) {
-                console.log(`رسالة من ${sender}`);
                 const prices = await getSheetData();
-                
                 const prompt = `
                 أنت مساعدة ذكية (AI) اسمك 'Sarai'. وظيفتك الرد على عملاء Sarai Coworking Space.
                 وضحي للعملاء إنك ذكاء اصطناعي.
                 اتكلمي بلهجة مصرية عامية، واضحة ومباشرة.
                 دي تفاصيل الأسعار:
                 ${prices}
-                
                 رسالة العميل: ${text}
                 `;
 
@@ -87,7 +99,6 @@ async function connectToWhatsApp() {
                     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
                     const result = await model.generateContent(prompt);
                     const reply = result.response.text();
-
                     await sock.sendMessage(sender, { text: reply });
                 } catch (error) {
                     console.error('مشكلة في الرد:', error);
