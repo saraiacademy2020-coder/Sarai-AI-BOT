@@ -38,7 +38,8 @@ async function connectToWhatsApp() {
         const sock = makeWASocket({
             auth: state,
             printQRInTerminal: false,
-            logger: pino({ level: 'silent' })
+            logger: pino({ level: 'silent' }),
+            browser: ['Sarai Bot', 'Chrome', '1.0.0'] // تعريف البوت عشان واتساب ميقفلش الاتصال
         });
 
         sock.ev.on('connection.update', (update) => {
@@ -50,8 +51,12 @@ async function connectToWhatsApp() {
             }
             
             if (connection === 'close') {
-                console.log("=== الاتصال قفل، جاري إعادة المحاولة... ===");
-                connectToWhatsApp();
+                const shouldReconnect = lastDisconnect.error?.output?.statusCode !== 401;
+                console.log("=== الاتصال قفل، جاري إعادة المحاولة بعد 3 ثواني... ===");
+                if (shouldReconnect) {
+                    // تأخير 3 ثواني عشان نمنع اللوب السريعة
+                    setTimeout(connectToWhatsApp, 3000); 
+                }
             } else if (connection === 'open') {
                 console.log('🎉🎉 === البوت متصل وجاهز للرد باسم Sarai! === 🎉🎉');
             }
