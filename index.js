@@ -5,7 +5,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const axios = require('axios');
 
 // حط مفتاح Gemini هنا
-const genAI = new GoogleGenerativeAI('YOUR_GEMINI_API_KEY');
+const genAI = new GoogleGenerativeAI('AIzaSyBLdovLAtqNRZgnWyioe_y3F5S7_vPWzZk');
 
 // دالة لسحب البيانات من Google Sheets
 async function getSheetData() {
