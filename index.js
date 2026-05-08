@@ -1,5 +1,5 @@
 const http = require('http');
-const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const qrcode = require('qrcode-terminal');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
@@ -24,7 +24,6 @@ async function getSheetData() {
         const res = await axios.get(sheetUrl);
         return res.data;
     } catch (e) {
-        console.error("خطأ في سحب ملف الإكسيل:", e.message);
         return 'لا توجد بيانات أسعار حاليا.';
     }
 }
@@ -33,13 +32,16 @@ async function connectToWhatsApp() {
     console.log("=== 3. جاري تجهيز ملفات الواتساب... ===");
     try {
         const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
-        console.log("=== 4. تم تجهيز الملفات، جاري الاتصال بسيرفر Meta... ===");
+        // سحب أحدث إصدار لواتساب ويب لمنع الرفض
+        const { version } = await fetchLatestBaileysVersion();
+        console.log(`=== 4. تم التجهيز. جاري الاتصال بإصدار ${version.join('.')} ===`);
 
         const sock = makeWASocket({
+            version,
             auth: state,
             printQRInTerminal: false,
             logger: pino({ level: 'silent' }),
-            browser: ['Sarai Bot', 'Chrome', '1.0.0'] // تعريف البوت عشان واتساب ميقفلش الاتصال
+            browser: ['Ubuntu', 'Chrome', '20.0.04']
         });
 
         sock.ev.on('connection.update', (update) => {
@@ -51,14 +53,10 @@ async function connectToWhatsApp() {
             }
             
             if (connection === 'close') {
-                const shouldReconnect = lastDisconnect.error?.output?.statusCode !== 401;
-                console.log("=== الاتصال قفل، جاري إعادة المحاولة بعد 3 ثواني... ===");
-                if (shouldReconnect) {
-                    // تأخير 3 ثواني عشان نمنع اللوب السريعة
-                    setTimeout(connectToWhatsApp, 3000); 
-                }
+                console.log("=== الاتصال قفل، جاري إعادة المحاولة... ===");
+                setTimeout(connectToWhatsApp, 3000); 
             } else if (connection === 'open') {
-                console.log('🎉🎉 === البوت متصل وجاهز للرد باسم Sarai! === 🎉🎉');
+                console.log('=== البوت متصل وجاهز للرد باسم Sarai! ===');
             }
         });
 
@@ -72,14 +70,14 @@ async function connectToWhatsApp() {
             const sender = m.key.remoteJid;
 
             if (text) {
-                console.log(`رسالة جديدة من ${sender}: ${text}`);
+                console.log(`رسالة من ${sender}`);
                 const prices = await getSheetData();
                 
                 const prompt = `
                 أنت مساعدة ذكية (AI) اسمك 'Sarai'. وظيفتك الرد على عملاء Sarai Coworking Space.
-                وضحي للعملاء إنك ذكاء اصطناعي بشكل طبيعي ومختصر.
+                وضحي للعملاء إنك ذكاء اصطناعي.
                 اتكلمي بلهجة مصرية عامية، واضحة ومباشرة.
-                دي تفاصيل الأسعار والخدمات من الإدارة:
+                دي تفاصيل الأسعار:
                 ${prices}
                 
                 رسالة العميل: ${text}
@@ -91,14 +89,13 @@ async function connectToWhatsApp() {
                     const reply = result.response.text();
 
                     await sock.sendMessage(sender, { text: reply });
-                    console.log("تم إرسال الرد بنجاح.");
                 } catch (error) {
-                    console.error('مشكلة في الرد من Gemini:', error);
+                    console.error('مشكلة في الرد:', error);
                 }
             }
         });
     } catch (err) {
-        console.error("=== مشكلة كبيرة في تشغيل الواتساب ===", err);
+        console.error("مشكلة:", err);
     }
 }
 
