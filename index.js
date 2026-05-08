@@ -1,24 +1,25 @@
 const http = require('http');
-const server = http.createServer((req, res) => {
-    res.writeHead(200, {'Content-Type': 'text/plain'});
-    res.end('Bot is running!');
-});
-const port = process.env.PORT || 3000;
-server.listen(port, () => {
-    console.log(`Server is listening on port ${port}`);
-});
 const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const qrcode = require('qrcode-terminal');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const axios = require('axios');
 
-// حط مفتاح Gemini هنا
+// السيرفر الوهمي عشان Render ميفصلش
+const server = http.createServer((req, res) => {
+    res.writeHead(200, {'Content-Type': 'text/plain'});
+    res.end('Sarai Bot is running!');
+});
+const port = process.env.PORT || 3000;
+server.listen(port, () => {
+    console.log(`Server is listening on port ${port}`);
+});
+
+// إعداد Gemini
 const genAI = new GoogleGenerativeAI('AIzaSyBLdovLAtqNRZgnWyioe_y3F5S7_vPWzZk');
 
-// دالة لسحب البيانات من Google Sheets
+// دالة سحب بيانات الشيت
 async function getSheetData() {
-    // حط لينك الشيت هنا (لازم يكون Published as CSV)
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS6zcrERoQIWZ_TMN6ppVRcPwCo6mfvJUtUscvCQhJJVTxFHwrQ7YZz98I3Im6MQeIfaagyGfkqvAd7/pub?output=csv';
     try {
         const res = await axios.get(sheetUrl);
@@ -29,16 +30,14 @@ async function getSheetData() {
 }
 
 async function connectToWhatsApp() {
-    // حفظ الـ Session عشان ما يطلبش QR كل شوية
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
 
     const sock = makeWASocket({
         auth: state,
-        printQRInTerminal: false, // هنطبعه بنفسنا
+        printQRInTerminal: false,
         logger: pino({ level: 'silent' })
     });
 
-    // طباعة الـ QR Code
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
         if (qr) {
@@ -57,7 +56,6 @@ async function connectToWhatsApp() {
 
     sock.ev.on('creds.update', saveCreds);
 
-    // استقبال الرسايل والرد
     sock.ev.on('messages.upsert', async ({ messages }) => {
         const m = messages[0];
         if (!m.message || m.key.fromMe) return;
