@@ -10,21 +10,20 @@ let isConnected = false;
 const server = http.createServer((req, res) => {
     res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});
     if (isConnected) {
-        res.end('<h1 style="text-align:center; margin-top:50px; color:green;">سراي متصلة وجاهزة للرد! 🎉</h1>');
+        res.end('<h1 style="text-align:center; margin-top:50px; color:green;">سراي متصلة وجاهزة! 🎉</h1>');
     } else if (currentQR) {
         const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(currentQR)}`;
         res.end(`<div style="text-align: center; margin-top: 50px;"><img src="${qrImageUrl}" /><h2>اعمل سكان للكود</h2></div>`);
     } else {
-        res.end('<h1 style="text-align:center; margin-top:50px;">جاري التحميل... اعمل ريفريش</h1>');
+        res.end('<h1 style="text-align:center; margin-top:50px;">جاري التحميل...</h1>');
     }
 });
 
-const port = process.env.PORT || 3000;
-server.listen(port);
+server.listen(process.env.PORT || 3000);
 
-// استخدام موديل Gemini Pro المستقر
 const genAI = new GoogleGenerativeAI('AIzaSyBLdovLAtqNRZgnWyioe_y3F5S7_vPWzZk');
-const model = genAI.getGenerativeModel({ model: "gemini-pro" }); 
+// التعديل هنا: استخدام الاسم الرسمي للموديل
+const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" }); 
 
 async function getSheetData() {
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS6zcrERoQIWZ_TMN6ppVRcPwCo6mfvJUtUscvCQhJJVTxFHwrQ7YZz98I3Im6MQeIfaagyGfkqvAd7/pub?output=csv';
@@ -43,7 +42,7 @@ async function connectToWhatsApp() {
         auth: state,
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
-        browser: ['Ubuntu', 'Chrome', '20.0.04']
+        browser: ['Sarai Bot', 'Chrome', '20.0.04']
     });
 
     sock.ev.on('connection.update', (update) => {
@@ -51,7 +50,7 @@ async function connectToWhatsApp() {
         if (qr) currentQR = qr;
         if (connection === 'open') {
             isConnected = true;
-            console.log('=== البوت متصل الآن ===');
+            console.log('=== سراي أونلاين الآن ===');
         }
         if (connection === 'close') {
             isConnected = false;
@@ -69,18 +68,17 @@ async function connectToWhatsApp() {
         const sender = m.key.remoteJid;
 
         if (text) {
-            console.log(`استلمت رسالة: ${text}`);
+            console.log(`وصلت رسالة: ${text}`);
             const prices = await getSheetData();
-            const prompt = `أنت مساعدة ذكية اسمك 'سراي'. ردي بالمصري وبأسلوب لذيذ. دي بيانات الأسعار والخدمات: ${prices}. العميل بيقول: ${text}`;
+            const prompt = `أنتِ سراي، مساعدة ذكية لـ Sarai Coworking Space. ردي بالمصري وبخفة دم. دي معلومات المكان: ${prices}. العميل بيقول: ${text}`;
 
             try {
                 const result = await model.generateContent(prompt);
-                const response = await result.response;
-                const reply = response.text();
+                const reply = result.response.text();
                 await sock.sendMessage(sender, { text: reply });
-                console.log("تم الرد بنجاح");
+                console.log("تم الرد");
             } catch (error) {
-                console.error('خطأ في توليد الرد:', error);
+                console.error('خطأ في Gemini:', error.message);
             }
         }
     });
