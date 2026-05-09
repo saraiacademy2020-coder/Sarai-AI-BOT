@@ -10,7 +10,7 @@ let isConnected = false;
 const server = http.createServer((req, res) => {
     res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});
     if (isConnected) {
-        res.end('<h1 style="text-align:center; margin-top:50px; color:green;">سراي متصلة وجاهزة! 🎉</h1>');
+        res.end('<h1 style="text-align:center; margin-top:50px; color:green;">سراي أونلاين وشغالة! 🎉</h1>');
     } else if (currentQR) {
         const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(currentQR)}`;
         res.end(`<div style="text-align: center; margin-top: 50px;"><img src="${qrImageUrl}" /><h2>اعمل سكان للكود</h2></div>`);
@@ -18,12 +18,11 @@ const server = http.createServer((req, res) => {
         res.end('<h1 style="text-align:center; margin-top:50px;">جاري التحميل...</h1>');
     }
 });
-
 server.listen(process.env.PORT || 3000);
 
+// التعديل هنا: استخدام gemini-1.5-flash بس بدون v1beta
 const genAI = new GoogleGenerativeAI('AIzaSyBLdovLAtqNRZgnWyioe_y3F5S7_vPWzZk');
-// التعديل هنا: استخدام الاسم الرسمي للموديل
-const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" }); 
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
 
 async function getSheetData() {
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS6zcrERoQIWZ_TMN6ppVRcPwCo6mfvJUtUscvCQhJJVTxFHwrQ7YZz98I3Im6MQeIfaagyGfkqvAd7/pub?output=csv';
@@ -70,15 +69,19 @@ async function connectToWhatsApp() {
         if (text) {
             console.log(`وصلت رسالة: ${text}`);
             const prices = await getSheetData();
-            const prompt = `أنتِ سراي، مساعدة ذكية لـ Sarai Coworking Space. ردي بالمصري وبخفة دم. دي معلومات المكان: ${prices}. العميل بيقول: ${text}`;
+            const prompt = `أنتِ سراي، مساعدة ذكية لـ Sarai Coworking Space في الجيزة. ردي بلهجة مصرية عامية ولذيذة ومختصرة جداً. دي معلومات المكان: ${prices}. العميل بيقول: ${text}`;
 
             try {
                 const result = await model.generateContent(prompt);
-                const reply = result.response.text();
+                // تعديل طريقة قراءة الرد لضمان التوافق
+                const response = await result.response;
+                const reply = response.text();
                 await sock.sendMessage(sender, { text: reply });
-                console.log("تم الرد");
+                console.log("تم الرد بنجاح");
             } catch (error) {
                 console.error('خطأ في Gemini:', error.message);
+                // رد احتياطي لو Gemini لسه مهيس
+                await sock.sendMessage(sender, { text: "منور في سراي! ثواني والمسؤول هيرد عليك بكل التفاصيل." });
             }
         }
     });
